@@ -47,8 +47,8 @@ app.get("/api/items", (req, res) => {
 
 					res.json({
 						author: {
-							name: "Nicolás",
-							lastname: "Armelino"
+							name: process.env.AUTOR_NOMBRE,
+							lastname: process.env.AUTOR_APELLIDO
 						},
 						items: Articulos
 					});
@@ -66,6 +66,78 @@ app.get("/api/items", (req, res) => {
 			msg: "Error de servidor."
 		})
 	}
+});
+
+app.get("/api/items/:id", (req, res) => {
+	let id = req.params.id;
+
+	try {
+		request({
+			uri: "https://api.mercadolibre.com/items/" + id,
+		},
+			function (error, response, body) {
+				let Cuerpo = JSON.parse(body);
+
+				if (Cuerpo.error) {
+					switch (Cuerpo.error) {
+						case "resource not found":
+							res.status(404).json({
+								ok: false,
+								msg: "No se encuentra el producto."
+							});
+							break;
+
+						default:
+							res.status(500).json({
+								ok: false,
+								msg: Cuerpo.error
+							});
+					}
+				}
+				else {
+					if (!error && response.statusCode === 200) {
+						let Item = JSON.parse(body);
+
+						console.log(Item);
+
+						res.json({
+							author: {
+								name: process.env.AUTOR_NOMBRE,
+								lastname: process.env.AUTOR_APELLIDO
+							},
+							item: {
+								id: Item.id,
+								title: Item.title,
+								price: {
+									currency: Item.currency_id,
+									amount: Item.price,
+									decimals: 0
+								},
+								picture: Item.pictures[0].url,
+								condition: Item.condition,
+								free_shipping: Item.free_shipping,
+								sold_quantity: Item.sold_quantity,
+								description: ""
+							}
+						});
+					} else {
+						console.log(body);
+						res.json(error);
+					}
+				}
+			}
+		);
+	}
+	catch (err) {
+		console.log(err);
+
+		res.status(500).json({
+			ok: false,
+			msg: "Error de servidor."
+		})
+	}
+
+	//https://api.mercadolibre.com/items/ :id /description
 });
 
 app.listen(process.env.PUERTO, () => {
