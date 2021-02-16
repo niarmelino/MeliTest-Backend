@@ -50,6 +50,7 @@ app.get("/api/items", (req, res) => {
 							name: process.env.AUTOR_NOMBRE,
 							lastname: process.env.AUTOR_APELLIDO
 						},
+						categories: body.filters.filter(x => x.id == "category")[0].values[0].path_from_root,
 						items: Articulos
 					});
 				} else {
