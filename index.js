@@ -39,9 +39,10 @@ app.get("/api/items", (req, res) => {
 								amount: item.price,
 								decimals: 0
 							},
-							picture: item.thumbnail,
+							picture: "https://http2.mlstatic.com/D_NQ_NP_" + item.thumbnail_id + "-V.webp",
 							condition: item.condition,
-							free_shipping: item.shipping.free_shipping
+							free_shipping: item.shipping.free_shipping,
+							state: item.seller_address.state.name
 						});
 					}
 
