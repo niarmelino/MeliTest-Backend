@@ -1,7 +1,7 @@
-const express = require("express");
-const cors = require("cors");
+var express = require('express');
+var https = require('https');
+var cors = require("cors"); 
 require("dotenv").config();
-const request = require('request');
 
 const app = express();
 app.use(cors());
@@ -14,132 +14,176 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/items", (req, res) => {
-	let query = req.query.q;
+	let url = process.env.URL_MLA.concat('sites/MLA/search?q=:', req.query.q, '&limit=', process.env.CANT_PRODUCTOS);
 
-	try {
-		request({
-			uri: "https://api.mercadolibre.com/sites/MLA/search",
-			qs: {
-				limit: process.env.CANT_PRODUCTOS,
-				q: query
+	https.get(url, (resp) => {
+		let data = '';
+
+		resp.on('data', (chunk) => {
+			data += chunk;
+		});
+
+		resp.on('end', () => {
+			let datos = JSON.parse(data);
+
+			//Categories  
+			let categories = [];
+			if (datos.filters[0] && datos.filters[0].values[0]) {
+				datos.filters[0].values[0].path_from_root.forEach(element => {
+					categories.push(element)
+				});
 			}
-		},
-			function (error, response, body) {
-				if (!error && response.statusCode === 200) {
-					body = JSON.parse(body);
 
-					let Articulos = [];
+			//Items
+			let promises = [];
 
-					for (let item of body.results) {
-						Articulos.push({
-							id: item.id,
-							title: item.title,
-							price: {
-								currency: item.currency_id,
-								amount: item.price,
-								decimals: 0
-							},
-							picture: "https://http2.mlstatic.com/D_NQ_NP_" + item.thumbnail_id + "-V.webp",
-							condition: item.condition,
-							free_shipping: item.shipping.free_shipping,
-							state: item.seller_address.state.name
-						});
-					}
+			datos.results.forEach(element => {
+				let urlCurrency = process.env.URL_MLA.concat('currencies/', element.currency_id);
 
-					res.json({
-						author: {
-							name: process.env.AUTOR_NOMBRE,
-							lastname: process.env.AUTOR_APELLIDO
-						},
-						categories: body.filters.filter(x => x.id == "category")[0].values[0].path_from_root,
-						items: Articulos
-					});
-				} else {
-					res.json(error);
+				promises.push(
+					new Promise((resolve, reject) => {
+						https.get(urlCurrency, (resp) => {
+							let currency = '';
+
+							resp.on('data', (chunk) => {
+								currency += chunk;
+							});
+
+							resp.on('end', () => {
+								let symbol = JSON.parse(currency).symbol;
+
+								let jsonItem = {
+									id: element.id,
+									title: element.title,
+									price: {
+										currency: symbol,
+										amount: Math.trunc(element.price).toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'),
+										decimals: Math.round((element.price % 1) * 100).toString().padStart(2, "0")
+									},
+									picture: element.thumbnail,
+									address: element.address.state_name,
+                                    free_shipping: element.shipping.free_shipping,
+                                    state: element.seller_address.state.name
+								}
+
+								resolve(jsonItem);
+							})
+						})
+					})
+				);
+			});
+
+			Promise.all(promises).then((items) => {
+				let jsonData = {
+					author: {
+						name: process.env.AUTOR_NOMBRE,
+						lastname: process.env.AUTOR_APELLIDO
+					},
+					categories: categories,
+					items: items
 				}
-			}
-		);
-	}
-	catch (err) {
-		console.log(err);
 
-		res.status(500).json({
-			ok: false,
-			msg: "Error de servidor."
-		})
-	}
+				res.json(jsonData);
+			})
+		});
+
+	}).on("error", (err) => {
+		console.log("err")
+		console.log("Error: " + err.message);
+	});
 });
 
 app.get("/api/items/:id", (req, res) => {
-	let id = req.params.id;
+    let urlItem = process.env.URL_MLA.concat('items/', req.params.id);
 
-	try {
-		request({
-			uri: "https://api.mercadolibre.com/items/" + id,
-		},
-			function (error, response, body) {
-				let Cuerpo = JSON.parse(body);
+    https.get(urlItem, (resp) => {
+        let data = '';
 
-				if (Cuerpo.error) {
-					switch (Cuerpo.error) {
-						case "resource not found":
-							res.status(404).json({
-								ok: false,
-								msg: "No se encuentra el producto."
-							});
-							break;
+        resp.on('data', (chunk) => {
+            data += chunk;
+        });
 
-						default:
-							res.status(500).json({
-								ok: false,
-								msg: Cuerpo.error
-							});
-					}
-				}
-				else {
-					if (!error && response.statusCode === 200) {
-						let Item = JSON.parse(body);
+        resp.on('end', () => {
+            let element = JSON.parse(data);
+            let urlCurrency = process.env.URL_MLA.concat('currencies/', element.currency_id);
 
-						console.log(Item);
+            https.get(urlCurrency, (resp) => {
+                let currency = '';
 
-						res.json({
-							author: {
-								name: process.env.AUTOR_NOMBRE,
-								lastname: process.env.AUTOR_APELLIDO
-							},
-							item: {
-								id: Item.id,
-								title: Item.title,
-								price: {
-									currency: Item.currency_id,
-									amount: Item.price,
-									decimals: 0
-								},
-								picture: Item.pictures[0].url,
-								condition: Item.condition,
-								free_shipping: Item.free_shipping,
-								sold_quantity: Item.sold_quantity,
-								description: ""
-							}
-						});
-					} else {
-						console.log(body);
-						res.json(error);
-					}
-				}
-			}
-		);
-	}
-	catch (err) {
-		console.log(err);
+                resp.on('data', (chunk) => {
+                    currency += chunk;
+                });
 
-		res.status(500).json({
-			ok: false,
-			msg: "Error de servidor."
-		})
-	}
+                resp.on('end', () => {
+                    let symbol = JSON.parse(currency).symbol;
+                    let urlDescription = process.env.URL_MLA.concat('items/', req.params.id, '/description');
 
-	//https://api.mercadolibre.com/items/ :id /description
+                    https.get(urlDescription, (resp) => {
+                        let descripcion = '';
+
+                        resp.on('data', (chunk) => {
+                            descripcion += chunk;
+                        });
+
+                        resp.on('end', () => {
+                            let description = JSON.parse(descripcion).plain_text;
+                            let urlCategory = process.env.URL_MLA.concat('categories/', element.category_id);
+
+                            https.get(urlCategory, (resp) => {
+                                let categories = '';
+
+                                resp.on('data', (chunk) => {
+                                    categories += chunk;
+                                });
+
+                                resp.on('end', () => {
+                                    let categorias = JSON.parse(categories).path_from_root;
+
+                                    let item = {
+                                        id: element.id,
+                                        title: element.title,
+                                        price: {
+                                            currency: symbol,
+                                            amount: Math.trunc(element.price).toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'),
+                                            decimals: Math.round((element.price % 1) * 100).toString().padStart(2, "0")
+                                        },
+                                        picture: element.thumbnail,
+                                        condition: element.condition,
+                                        free_shipping: element.shipping.free_shipping,
+                                        sold_quantity: element.sold_quantity,
+                                        description: description,
+                                        categories: categorias
+                                    }
+
+                                    let jsonData = {
+                                        author: {
+                                            name: process.env.AUTOR_NOMBRE,
+                                            lastname: process.env.AUTOR_APELLIDO
+                                        },
+                                        item: item
+                                    }
+
+                                    res.json(jsonData);
+                                });
+                            }).on("error", (err) => {
+                                console.log("err")
+                                console.log("Error: " + err.message);
+                            });
+                        });
+                    }).on("error", (err) => {
+                        console.log("err")
+                        console.log("Error: " + err.message);
+                    });
+                });
+            }).on("error", (err) => {
+                console.log("err")
+                console.log("Error: " + err.message);
+            });
+        })
+    }).on("error", (err) => {
+        console.log("err")
+        console.log("Error: " + err.message);
+    });
 });
 
 app.listen(process.env.PUERTO, () => {
