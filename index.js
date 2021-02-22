@@ -105,80 +105,95 @@ app.get("/api/items/:id", (req, res) => {
 
         resp.on('end', () => {
             let element = JSON.parse(data);
-            let urlCurrency = process.env.URL_MLA.concat('currencies/', element.currency_id);
+            
+            if (element.error) {
+                let jsonData = {
+                    author: {
+                        name: process.env.AUTOR_NOMBRE,
+                        lastname: process.env.AUTOR_APELLIDO
+                    },
+                    error: element
+                }
 
-            https.get(urlCurrency, (resp) => {
-                let currency = '';
+                res.status(element.status).json(jsonData);
+            }
+            else {
+                let urlCurrency = process.env.URL_MLA.concat('currencies/', element.currency_id);
 
-                resp.on('data', (chunk) => {
-                    currency += chunk;
-                });
+                https.get(urlCurrency, (resp) => {
+                    let currency = '';
 
-                resp.on('end', () => {
-                    let symbol = JSON.parse(currency).symbol;
-                    let urlDescription = process.env.URL_MLA.concat('items/', req.params.id, '/description');
-
-                    https.get(urlDescription, (resp) => {
-                        let descripcion = '';
-
-                        resp.on('data', (chunk) => {
-                            descripcion += chunk;
-                        });
-
-                        resp.on('end', () => {
-                            let description = JSON.parse(descripcion).plain_text;
-                            let urlCategory = process.env.URL_MLA.concat('categories/', element.category_id);
-
-                            https.get(urlCategory, (resp) => {
-                                let categories = '';
-
-                                resp.on('data', (chunk) => {
-                                    categories += chunk;
-                                });
-
-                                resp.on('end', () => {
-                                    let categorias = JSON.parse(categories).path_from_root;
-
-                                    let item = {
-                                        id: element.id,
-                                        title: element.title,
-                                        price: {
-                                            currency: symbol,
-                                            amount: Math.trunc(element.price).toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'),
-                                            decimals: Math.round((element.price % 1) * 100).toString().padStart(2, "0")
-                                        },
-                                        picture: element.thumbnail,
-                                        condition: element.condition,
-                                        free_shipping: element.shipping.free_shipping,
-                                        sold_quantity: element.sold_quantity,
-                                        description: description,
-                                        categories: categorias
-                                    }
-
-                                    let jsonData = {
-                                        author: {
-                                            name: process.env.AUTOR_NOMBRE,
-                                            lastname: process.env.AUTOR_APELLIDO
-                                        },
-                                        item: item
-                                    }
-
-                                    res.json(jsonData);
-                                });
-                            }).on("error", (err) => {
-                                console.log("err")
-                                console.log("Error: " + err.message);
-                            });
-                        });
-                    }).on("error", (err) => {
-                        console.log("err")
-                        console.log("Error: " + err.message);
+                    resp.on('data', (chunk) => {
+                        currency += chunk;
                     });
+
+                    resp.on('end', () => {
+                        let symbol = JSON.parse(currency).symbol;
+                        let urlDescription = process.env.URL_MLA.concat('items/', req.params.id, '/description');
+
+                        https.get(urlDescription, (resp) => {
+                            let descripcion = '';
+
+                            resp.on('data', (chunk) => {
+                                descripcion += chunk;
+                            });
+
+                            resp.on('end', () => {
+                                let description = JSON.parse(descripcion).plain_text;
+                                let urlCategory = process.env.URL_MLA.concat('categories/', element.category_id);
+
+                                https.get(urlCategory, (resp) => {
+                                    let categories = '';
+
+                                    resp.on('data', (chunk) => {
+                                        categories += chunk;
+                                    });
+
+                                    resp.on('end', () => {
+                                        let categorias = JSON.parse(categories).path_from_root;
+
+                                        let item = {
+                                            id: element.id,
+                                            title: element.title,
+                                            price: {
+                                                currency: symbol,
+                                                amount: Math.trunc(element.price).toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'),
+                                                decimals: Math.round((element.price % 1) * 100).toString().padStart(2, "0")
+                                            },
+                                            picture: "https://http2.mlstatic.com/D_NQ_NP_2X_" + element.thumbnail_id + "-F.webp",
+                                            condition: element.condition,
+                                            free_shipping: element.shipping.free_shipping,
+                                            sold_quantity: element.sold_quantity,
+                                            description: description,
+                                            categories: categorias
+                                        }
+
+                                        let jsonData = {
+                                            author: {
+                                                name: process.env.AUTOR_NOMBRE,
+                                                lastname: process.env.AUTOR_APELLIDO
+                                            },
+                                            item: item,
+                                            //original: element
+                                        }
+
+                                        res.json(jsonData);
+                                    });
+                                }).on("error", (err) => {
+                                    console.log("err")
+                                    console.log("Error: " + err.message);
+                                });
+                            });
+                        }).on("error", (err) => {
+                            console.log("err")
+                            console.log("Error: " + err.message);
+                        });
+                    });
+                }).on("error", (err) => {
+                    console.log("err")
+                    console.log("Error: " + err.message);
                 });
-            }).on("error", (err) => {
-                console.log("err")
-                console.log("Error: " + err.message);
-            });
+            }
         })
     }).on("error", (err) => {
         console.log("err")
