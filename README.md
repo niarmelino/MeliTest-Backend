@@ -7,5 +7,7 @@ npm i
 Luego, para inicarlo
 
 ```
-npm run start:dev
+npm run start
 ```
+
+El front para usar se encuentra en https://github.com/niarmelino/MeliTest-Frontend
