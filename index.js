@@ -60,7 +60,7 @@ app.get("/api/items", (req, res) => {
 										amount: Math.trunc(element.price).toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'),
 										decimals: Math.round((element.price % 1) * 100).toString().padStart(2, "0")
 									},
-									picture: element.thumbnail,
+                                    picture: "https://http2.mlstatic.com/D_NQ_NP_" + element.thumbnail_id + "-V.webp",
 									address: element.address.state_name,
                                     free_shipping: element.shipping.free_shipping,
                                     state: element.seller_address.state.name
